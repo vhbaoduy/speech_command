@@ -9,7 +9,7 @@ CLASSES = 'bed, bird, cat, dog, down, eight, five, four, go, happy, house, left,
 
 
 class SpeechCommandsDataset(Dataset):
-    def __init__(self, root_dir, df, sample_rate, transform, classes=CLASSES):
+    def __init__(self, root_dir, df, sample_rate, transform=None, classes=CLASSES):
         self.root_dir = root_dir
         self.classes = classes
         self.df = df
@@ -20,16 +20,19 @@ class SpeechCommandsDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        sample = self.df.iloc[idx]
-        path = os.path.join(self.root_dir, sample['file_name'])
-        label = utils.label_to_index(self.classes, sample['vocab'])
-        sample, sample_rate = utils.load_audio(path, self.sample_rate)
+        row = self.df.iloc[idx]
+        path = os.path.join(self.root_dir, row['file_name'])
+        label = utils.label_to_index(self.classes, row['vocab'])
+        samples, sample_rate = utils.load_audio(path, self.sample_rate)
         data = {
-            'samples': sample,
+            'samples': samples,
             'sample_rate': sample_rate,
-            'target': label
+            'target': label,
+            'path': row['file_name']
         }
-        return data, label
+        if self.transform is not None:
+            data = self.transform(data)
+        return data
 
     def make_weights_for_balanced_classes(self):
         df_count = self.df.groupby(self.df['vocab'])['vocab'].count()
@@ -59,12 +62,16 @@ class BackgroundNoiseDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self,index):
-        data = {'samples': self.samples[index], 'sample_rate': self.sample_rate, 'target': 1, 'path': self.path}
+    def __getitem__(self, index):
+        data = {
+            'samples': self.samples[index],
+            'sample_rate': self.sample_rate,
+            'target': 1,
+            'path': self.path
+        }
 
         if self.transform is not None:
             data = self.transform(data)
-
         return data
 
 if __name__ == '__main__':

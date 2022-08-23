@@ -21,7 +21,7 @@ class FixAudioLength(object):
             data['samples'] = samples[:length]
         elif length > len(samples):
             data['samples'] = np.pad(samples, (0, length - len(samples)), "constant")
-        return
+        return data
 
 
 class ChangeAmplitude(object):

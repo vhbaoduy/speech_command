@@ -30,11 +30,13 @@ def load_audio(path:str, sample_rate:int):
     :return: sample, sample_rate
     """
     sample, sample_rate = librosa.load(path=path, sr=sample_rate)
+    # if len(sample) < sample_rate:
+    #     sample = librosa.util.fix_length(sample, size=sample_rate)
     return sample, sample_rate
 
 
 def is_apply_transform(prob=0.5):
-    return random.Random() < prob
+    return random.random() < prob
 
 
 # Debugging

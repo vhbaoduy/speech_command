@@ -31,7 +31,8 @@ def build_transform(conf, mode='train'):
         data_aug_transform = Compose(
             [ChangeAmplitude(),
              ChangeSpeedAndPitchAudio(),
-             FixAudioLength(), ToSTFT(),
+             FixAudioLength(),
+             ToSTFT(),
              StretchAudioOnSTFT(),
              TimeshiftAudioOnSTFT(),
              FixSTFTDimension()
@@ -46,15 +47,17 @@ def build_transform(conf, mode='train'):
         return Compose([data_aug_transform, add_bg_noise, train_feature_transform])
 
     if mode == 'valid':
-        valid_feature_transform = Compose([ToMelSpectrogram(n_mels=conf.mel_spectrogram),
-                                           ToTensor('mel_spectrogram', 'input')])
-        return Compose([FixAudioLength(), valid_feature_transform])
+        valid_transform = Compose([FixAudioLength(),
+                                   ToMelSpectrogram(n_mels=conf.mel_spectrogram),
+                                   ToTensor('mel_spectrogram', 'input')])
+        return valid_transform
 
     return None
 
 
 def get_lr(opt):
     return opt.param_groups[0]['lr']
+
 
 def main():
     global best_accuracy, global_step, start_epoch
@@ -146,7 +149,6 @@ def main():
     name = 'resnext_%s_%s' % (conf.optim, conf.batch_size)
     writer = SummaryWriter(comment=('_speech_commands_') + name)
 
-
     def train(epoch):
         global global_step
         phase = 'train'
@@ -159,7 +161,7 @@ def main():
         correct = 0
         total = 0
 
-        pbar = tqdm(train_dataloader, unit="audios", unit_scale=train_dataloader.batch_size)
+        pbar = tqdm(train_dataloader)
         for batch in pbar:
             inputs = batch['input']
             inputs = torch.unsqueeze(inputs, 1)
@@ -197,7 +199,6 @@ def main():
         writer.add_scalar('%s/accuracy' % phase, 100 * accuracy, epoch)
         writer.add_scalar('%s/epoch_loss' % phase, epoch_loss, epoch)
 
-
     def valid(epoch):
         global best_accuracy, best_loss, global_step
 
@@ -209,7 +210,7 @@ def main():
         correct = 0
         total = 0
 
-        pbar = tqdm(valid_dataloader, unit="audios", unit_scale=valid_dataloader.batch_size)
+        pbar = tqdm(valid_dataloader)
         for batch in pbar:
             inputs = batch['input']
             inputs = torch.unsqueeze(inputs, 1)
@@ -269,8 +270,7 @@ def main():
         del checkpoint  # reduce memory
         return epoch_loss
 
-
-    print("Training %s ...")
+    print("Training ...")
     since = time.time()
     for epoch in range(start_epoch, conf.max_epochs):
         if conf.lr_scheduler == 'step':
@@ -283,10 +283,12 @@ def main():
             lr_scheduler.step(metrics=epoch_loss)
 
         time_elapsed = time.time() - since
-        time_str = 'Total time elapsed: {:.0f}h {:.0f}m {:.0f}s '.format(time_elapsed // 3600, time_elapsed % 3600 // 60,
+        time_str = 'Total time elapsed: {:.0f}h {:.0f}m {:.0f}s '.format(time_elapsed // 3600,
+                                                                         time_elapsed % 3600 // 60,
                                                                          time_elapsed % 60)
         print("%s, Best accuracy: %.02f%%, best loss %f" % (time_str, 100 * best_accuracy, best_loss))
     print("finished")
+
 
 if __name__ == '__main__':
     main()
