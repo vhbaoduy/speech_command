@@ -1,0 +1,27 @@
+settings:
+  # Preprocess data
+  dataset_name: "tensorflow-speech-recognition-challenge"
+  dataset_path: "F:/Datasets/speech-recognition/train/train/audio"
+  output_path: "./output"
+  background_noise: True
+  background_noise_path: 'F:/Datasets/speech-recognition/train/train/audio/_background_noise_'
+  ratio_split: 0.15  # each class
+
+  # Training
+  sample_rate: 16000
+  batch_size: 128
+  num_workers: 6
+  optimizers: "sgd" # ["sgd", "adam"]
+  lr: 0.0001
+  lr_scheduler: "plateau" # ["plateau", "step"]
+  lr_scheduler_step_size: 50
+  lr_scheduler_gamma: 0.1
+  weight_decay: 0.01
+  max_epochs: 70
+  mel_spectrogram: 32
+
+  # Checkpoint
+  checkpoint_path: "./checkpoints"
+  checkpoint_name: ""
+  resume: False
+
