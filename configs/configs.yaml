@@ -22,6 +22,10 @@ settings:
 
   # Checkpoint
   checkpoint_path: "./checkpoints"
-  checkpoint_name: ""
+  checkpoint_name : ""
   resume: False
 
+  # Inference
+  inference_path: "./inferences"
+  label_choice: False  #Choice label for store feature predict matching => store
+  inference_file: "data.csv"

@@ -3,7 +3,7 @@ from datasets import *
 from configs import *
 from models import *
 
-from torchvision.transforms import Compose
+
 from torch.utils.data import WeightedRandomSampler, DataLoader
 import torch
 from tensorboardX import SummaryWriter
@@ -18,41 +18,6 @@ start_epoch = 0
 best_accuracy = 0
 best_loss = 1e100
 global_step = 0
-
-
-def build_transform(conf, mode='train'):
-    """
-    Build transform for train and valid dataset
-    :param conf: Configuration from config file
-    :param mode: 'train', 'valid'
-    :return: data augmentation, background noise, feature transform
-    """
-    if mode == 'train':
-        data_aug_transform = Compose(
-            [ChangeAmplitude(),
-             ChangeSpeedAndPitchAudio(),
-             FixAudioLength(),
-             ToSTFT(),
-             StretchAudioOnSTFT(),
-             TimeshiftAudioOnSTFT(),
-             FixSTFTDimension()
-             ])
-        if conf.background_noise:
-            bg_dataset = BackgroundNoiseDataset(conf.background_noise_path, data_aug_transform, conf.sample_rate)
-            add_bg_noise = AddBackgroundNoiseOnSTFT(bg_dataset)
-        train_feature_transform = Compose(
-            [ToMelSpectrogramFromSTFT(n_mels=conf.mel_spectrogram),
-             DeleteSTFT(),
-             ToTensor('mel_spectrogram', 'input')])
-        return Compose([data_aug_transform, add_bg_noise, train_feature_transform])
-
-    if mode == 'valid':
-        valid_transform = Compose([FixAudioLength(),
-                                   ToMelSpectrogram(n_mels=conf.mel_spectrogram),
-                                   ToTensor('mel_spectrogram', 'input')])
-        return valid_transform
-
-    return None
 
 
 def get_lr(opt):
@@ -70,7 +35,7 @@ def main():
     print('use_gpu', use_gpu)
     if use_gpu:
         torch.backends.cudnn.benchmark = True
-        device = 'gpu'
+        device = 'cuda'
 
     # Parse agr and load config
     args = parser.parse_args()
@@ -109,13 +74,16 @@ def main():
                                   num_workers=conf.num_workers,
                                   pin_memory=use_gpu)
 
+    # Create model
     model = CifarResNeXt(nlabels=len(CLASSES), in_channels=1)
     if use_gpu:
         model = torch.nn.DataParallel(model).cuda()
 
+    # Init criterion
     criterion = torch.nn.CrossEntropyLoss()
 
-    if conf.optim == 'sgd':
+    # Init optimizer
+    if conf.optimizer == 'sgd':
         optimizer = torch.optim.SGD(model.parameters(),
                                     lr=conf.lr,
                                     momentum=0.9,
@@ -125,6 +93,7 @@ def main():
                                      lr=conf.lr,
                                      weight_decay=conf.weight_decay)
 
+    # Init learning rate scheduler
     if conf.lr_scheduler == 'plateau':
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=conf.lr_scheduler_patience,
                                                                   factor=conf.lr_scheduler_gamma)
@@ -132,6 +101,7 @@ def main():
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=conf.lr_scheduler_step_size,
                                                        gamma=conf.lr_scheduler_gamma, last_epoch=start_epoch - 1)
 
+    # Resuming mode
     if conf.resume:
         print("Resuming a checkpoint '%s'" % conf.checkpoint_name)
         checkpoint = torch.load(os.path.join(conf.checkpoint_path, conf.checkpoint_name))
@@ -146,7 +116,12 @@ def main():
 
         del checkpoint  # reduce
 
-    name = 'resnext_%s_%s' % (conf.optim, conf.batch_size)
+    # Create checkpoint path
+    if not os.path.exists(conf.checkpoint_path):
+        os.mkdir(conf.checkpoint_path)
+
+    # Init name model and board
+    name = 'resnext_%s_%s' % (conf.optimizer, conf.batch_size)
     writer = SummaryWriter(comment=('_speech_commands_') + name)
 
     def train(epoch):
@@ -157,7 +132,7 @@ def main():
 
         model.train()
         running_loss = 0.0
-        iter = 0
+        it = 0
         correct = 0
         total = 0
 
@@ -172,7 +147,7 @@ def main():
 
             if use_gpu:
                 inputs = inputs.to(device)
-                targets = inputs.to(device)
+                targets = targets.to(device)
 
             preds, _ = model(inputs)
 
@@ -181,7 +156,7 @@ def main():
             loss.backward()
             optimizer.step()
 
-            iter += 1
+            it += 1
             global_step += 1
             running_loss += loss.item()
             predicted = preds.data.max(1, keepdim=True)[1]
@@ -190,12 +165,12 @@ def main():
             total += targets.size(0)
 
             pbar.set_postfix({
-                'loss': "%.05f" % (running_loss / iter),
+                'loss': "%.05f" % (running_loss / it),
                 'acc': "%.02f%%" % (100 * correct / total)
             })
 
         accuracy = correct / total
-        epoch_loss = running_loss / iter
+        epoch_loss = running_loss / it
         writer.add_scalar('%s/accuracy' % phase, 100 * accuracy, epoch)
         writer.add_scalar('%s/epoch_loss' % phase, epoch_loss, epoch)
 
@@ -206,45 +181,43 @@ def main():
         model.eval()  # Set model to evaluate mode
 
         running_loss = 0.0
-        iter = 0
+        it = 0
         correct = 0
         total = 0
 
         pbar = tqdm(valid_dataloader)
-        for batch in pbar:
-            inputs = batch['input']
-            inputs = torch.unsqueeze(inputs, 1)
-            targets = batch['target']
+        with torch.no_grad():
+            for batch in pbar:
+                inputs = batch['input']
+                inputs = torch.unsqueeze(inputs, 1)
+                targets = batch['target']
 
-            inputs = torch.autograd.Variable(inputs, volatile=True)
-            targets = torch.autograd.Variable(targets, requires_grad=False)
+                if use_gpu:
+                    inputs = inputs.to(device)
+                    targets = targets.to(device)
 
-            if use_gpu:
-                inputs = inputs.to(device)
-                targets = targets.to(device)
+                # forward
+                outputs, _ = model(inputs)
+                loss = criterion(outputs, targets)
 
-            # forward
-            outputs, _ = model(inputs)
-            loss = criterion(outputs, targets)
+                # statistics
+                it += 1
+                global_step += 1
+                running_loss += loss.item()
+                pred = outputs.data.max(1, keepdim=True)[1]
+                correct += pred.eq(targets.data.view_as(pred)).sum()
+                total += targets.size(0)
 
-            # statistics
-            iter += 1
-            global_step += 1
-            running_loss += loss.data[0]
-            pred = outputs.data.max(1, keepdim=True)[1]
-            correct += pred.eq(targets.data.view_as(pred)).sum()
-            total += targets.size(0)
+                writer.add_scalar('%s/loss' % phase, loss.data[0], global_step)
 
-            writer.add_scalar('%s/loss' % phase, loss.data[0], global_step)
-
-            # update the progress bar
-            pbar.set_postfix({
-                'loss': "%.05f" % (running_loss / iter),
-                'acc': "%.02f%%" % (100 * correct / total)
-            })
+                # update the progress bar
+                pbar.set_postfix({
+                    'loss': "%.05f" % (running_loss / it),
+                    'acc': "%.02f%%" % (100 * correct / total)
+                })
 
         accuracy = correct / total
-        epoch_loss = running_loss / iter
+        epoch_loss = running_loss / it
         writer.add_scalar('%s/accuracy' % phase, 100 * accuracy, epoch)
         writer.add_scalar('%s/epoch_loss' % phase, epoch_loss, epoch)
 
@@ -259,14 +232,16 @@ def main():
 
         if accuracy > best_accuracy:
             best_accuracy = accuracy
-            torch.save(save_checkpoint, 'checkpoints/best-loss-speech-commands-checkpoint-%s.pth' % name)
-            torch.save(model, '%d-%s-best-loss.pth' % (start_timestamp, name))
+            torch.save(save_checkpoint,
+                       conf.checkpoint_path + '/' + 'best-loss-speech-commands-checkpoint-%s.pth' % name)
+            torch.save(model, conf.checkpoint_path + '/' + '%d-%s-best-loss.pth' % (start_timestamp, name))
         if epoch_loss < best_loss:
             best_loss = epoch_loss
-            torch.save(save_checkpoint, 'checkpoints/best-acc-speech-commands-checkpoint-%s.pth' % name)
-            torch.save(model, '%d-%s-best-acc.pth' % (start_timestamp, name))
+            torch.save(save_checkpoint,
+                       conf.checkpoint_path + '/' + 'best-acc-speech-commands-checkpoint-%s.pth' % name)
+            torch.save(model, conf.checkpoint_path + '/' + '%d-%s-best-acc.pth' % (start_timestamp, name))
 
-        torch.save(save_checkpoint, 'checkpoints/last-speech-commands-checkpoint.pth')
+        torch.save(save_checkpoint, conf.checkpoint_path + '/' + 'last-speech-commands-checkpoint.pth')
         del checkpoint  # reduce memory
         return epoch_loss
 
@@ -287,7 +262,7 @@ def main():
                                                                          time_elapsed % 3600 // 60,
                                                                          time_elapsed % 60)
         print("%s, Best accuracy: %.02f%%, best loss %f" % (time_str, 100 * best_accuracy, best_loss))
-    print("finished")
+    print("Finished")
 
 
 if __name__ == '__main__':

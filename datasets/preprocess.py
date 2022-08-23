@@ -69,6 +69,9 @@ class DataPreparing(object):
         df_valid.to_csv(os.path.join(self.output_path, 'valid.csv'), index=False)
         self.valid = df_valid
 
+        df = pd.concat([self.train, self.valid], ignore_index=True)
+        df.to_csv(os.path.join(self.output_path, 'data.csv'), index=False)
+
     def print_dataset_statistics(self):
         print("#" * 5, "DATASET STATISTICS", "#" * 5)
         print('The number of classes: {}'.format(self.n_classes))
