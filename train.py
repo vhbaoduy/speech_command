@@ -25,7 +25,7 @@ def get_lr(opt):
 
 
 def main():
-    global best_accuracy, global_step, start_epoch
+    global best_accuracy, global_step, start_epoch, start_timestamp, best_loss
     parser = argparse.ArgumentParser(description='Train model for speech command',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config_file', type=str, default='./configs/configs.yaml')
@@ -208,7 +208,7 @@ def main():
                 correct += pred.eq(targets.data.view_as(pred)).sum()
                 total += targets.size(0)
 
-                writer.add_scalar('%s/loss' % phase, loss.data[0], global_step)
+                writer.add_scalar('%s/loss' % phase, loss.item(), global_step)
 
                 # update the progress bar
                 pbar.set_postfix({
@@ -234,12 +234,12 @@ def main():
             best_accuracy = accuracy
             torch.save(save_checkpoint,
                        conf.checkpoint_path + '/' + 'best-loss-speech-commands-checkpoint-%s.pth' % name)
-            torch.save(model, conf.checkpoint_path + '/' + '%d-%s-best-loss.pth' % (start_timestamp, name))
+            torch.save(model, conf.checkpoint_path + '/' + 'best-loss.pth' % (start_timestamp, name))
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             torch.save(save_checkpoint,
                        conf.checkpoint_path + '/' + 'best-acc-speech-commands-checkpoint-%s.pth' % name)
-            torch.save(model, conf.checkpoint_path + '/' + '%d-%s-best-acc.pth' % (start_timestamp, name))
+            torch.save(model, conf.checkpoint_path + '/' + 'best-acc.pth' % (start_timestamp, name))
 
         torch.save(save_checkpoint, conf.checkpoint_path + '/' + 'last-speech-commands-checkpoint.pth')
         del checkpoint  # reduce memory

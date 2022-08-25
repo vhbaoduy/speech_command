@@ -77,7 +77,7 @@ def main():
             targets = targets.cpu().numpy().ravel()
             feats = feats.cpu().numpy()
 
-            for i in range(len(batch)):
+            for i in range(len(batch['path'])):
                 file_name = batch['path'][i]
                 name_class = utils.index_to_label(CLASSES, targets[i])
                 folder = os.path.join(conf.inference_path, name_class)
@@ -93,8 +93,6 @@ def main():
                 else:
                     np.save(os.path.join(folder, audio_name + ".npy"), feats[i])
 
-                break
-            break
 
 
 if __name__ == '__main__':

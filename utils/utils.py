@@ -1,5 +1,7 @@
+import os.path
 import random
 import librosa
+import numpy as np
 
 
 def label_to_index(labels: object, label: str):
@@ -22,7 +24,7 @@ def index_to_label(labels: object, index: int):
     return labels[index]
 
 
-def load_audio(path:str, sample_rate:int):
+def load_audio(path: str, sample_rate: int):
     """
     Load audio from path with sample rate
     :param path: Path to audio
@@ -37,5 +39,36 @@ def load_audio(path:str, sample_rate:int):
 
 def is_apply_transform(prob=0.5):
     return random.random() < prob
+
+
+def load_features(path: str, n=None):
+    if os.path.isdir(path):
+        vocab_name = path.split('\\')[-1]
+        features = []
+        for file_name in os.listdir(path):
+            if file_name.endswith('.npy'):
+                feat = np.load(os.path.join(path, file_name))
+                features.append(feat)
+                if n is not None and len(features) == n:
+                    break
+        return vocab_name, np.array(features), len(features)
+
+    return None, None, None
+
+
+def compute_variance(features):
+    mean = np.mean(features, axis=0)
+    norm = features - mean
+    variance = np.mean(norm ** 2)
+    radius = np.max(np.linalg.norm(norm, axis=0))
+    return variance, radius
+
+
+def visualize(feature_path, classes, n_class=5, n_samples=100):
+    random_choice = []
+    while len(random_choice) < n_class:
+        choice = random.choice(classes)
+        if choice not in random_choice:
+            random_choice.append(choice)
 
 
