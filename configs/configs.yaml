@@ -15,6 +15,7 @@ settings:
   lr: 0.0001
   lr_scheduler: "plateau" # ["plateau", "step"]
   lr_scheduler_step_size: 50
+  lr_scheduler_patience: 5
   lr_scheduler_gamma: 0.1
   weight_decay: 0.01
   max_epochs: 70

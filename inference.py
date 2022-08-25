@@ -77,7 +77,7 @@ def main():
             targets = targets.cpu().numpy().ravel()
             feats = feats.cpu().numpy()
 
-            for i in range(len(batch['path'])):
+            for i in range(conf.batch_size):
                 file_name = batch['path'][i]
                 name_class = utils.index_to_label(CLASSES, targets[i])
                 folder = os.path.join(conf.inference_path, name_class)

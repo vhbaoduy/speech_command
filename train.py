@@ -114,8 +114,6 @@ def main():
         start_epoch = checkpoint.get('epoch', start_epoch)
         global_step = checkpoint.get('step', global_step)
 
-        del checkpoint  # reduce
-
     # Create checkpoint path
     if not os.path.exists(conf.checkpoint_path):
         os.mkdir(conf.checkpoint_path)
@@ -242,7 +240,6 @@ def main():
             torch.save(model, conf.checkpoint_path + '/' + 'best-acc.pth' % (start_timestamp, name))
 
         torch.save(save_checkpoint, conf.checkpoint_path + '/' + 'last-speech-commands-checkpoint.pth')
-        del checkpoint  # reduce memory
         return epoch_loss
 
     print("Training ...")
