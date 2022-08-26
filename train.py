@@ -232,12 +232,12 @@ def main():
             best_accuracy = accuracy
             torch.save(save_checkpoint,
                        conf.checkpoint_path + '/' + 'best-loss-speech-commands-checkpoint-%s.pth' % name)
-            torch.save(model, conf.checkpoint_path + '/' + 'best-loss.pth' % (start_timestamp, name))
+            torch.save(model, conf.checkpoint_path + '/' + 'best-loss.pth')
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             torch.save(save_checkpoint,
                        conf.checkpoint_path + '/' + 'best-acc-speech-commands-checkpoint-%s.pth' % name)
-            torch.save(model, conf.checkpoint_path + '/' + 'best-acc.pth' % (start_timestamp, name))
+            torch.save(model, conf.checkpoint_path + '/' + 'best-acc.pth')
 
         torch.save(save_checkpoint, conf.checkpoint_path + '/' + 'last-speech-commands-checkpoint.pth')
         return epoch_loss
